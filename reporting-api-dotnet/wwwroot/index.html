@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retail Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6f8; color: #222; }
+  header { background: #1f3a5f; color: #fff; padding: 16px 24px; }
+  main { padding: 20px; display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+  .card { background: #fff; border-radius: 8px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.1); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<header><h2 style="margin:0">Retail Analytics Dashboard</h2>
+<small>Java ingests sales &rarr; PostgreSQL &rarr; .NET serves reports (auto-refresh 5s)</small></header>
+<main>
+  <div class="card"><h3>Top products by revenue</h3><canvas id="products"></canvas></div>
+  <div class="card"><h3>Revenue by store</h3><canvas id="stores"></canvas></div>
+  <div class="card" style="grid-column:1/-1"><h3>Latest sales</h3>
+    <table><thead><tr><th>ID</th><th>Store</th><th>Product</th><th>Qty</th><th>Price</th><th>Time</th></tr></thead>
+    <tbody id="recent"></tbody></table></div>
+</main>
+<script>
+const charts = {};
+function draw(id, labels, data, label) {
+  if (charts[id]) { charts[id].data.labels = labels; charts[id].data.datasets[0].data = data; charts[id].update(); return; }
+  charts[id] = new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: { labels, datasets: [{ label, data, backgroundColor: '#3b82f6' }] },
+    options: { animation: false }
+  });
+}
+async function refresh() {
+  try {
+    const [p, s, r] = await Promise.all([
+      fetch('/api/reports/top-products').then(x => x.json()),
+      fetch('/api/reports/revenue-by-store').then(x => x.json()),
+      fetch('/api/reports/recent').then(x => x.json())
+    ]);
+    draw('products', p.map(x => x.product), p.map(x => x.revenue), 'Revenue (INR)');
+    draw('stores', s.map(x => x.store), s.map(x => x.revenue), 'Revenue (INR)');
+    document.getElementById('recent').innerHTML = r.map(x =>
+      `<tr><td>${x.id}</td><td>${x.store}</td><td>${x.product}</td><td>${x.quantity}</td><td>${x.unit_price}</td><td>${new Date(x.sold_at).toLocaleTimeString()}</td></tr>`).join('');
+  } catch (e) { console.error(e); }
+}
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

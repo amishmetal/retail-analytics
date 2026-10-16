@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: retail
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d retail"]
+      interval: 3s
+      retries: 20
+
+  ingestion-java:
+    build: ./ingestion-service-java
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/retail
+    ports: ["8080:8080"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  reporting-dotnet:
+    build: ./reporting-api-dotnet
+    environment:
+      DB_CONN: Host=db;Port=5432;Database=retail;Username=postgres;Password=postgres
+    ports: ["8081:8081"]
+    depends_on:
+      db: { condition: service_healthy }
